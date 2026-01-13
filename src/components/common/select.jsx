@@ -9,14 +9,14 @@ export default function select({label, value, onChange, options, className}) {
       <select
         className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl text-base transition-all duration-300 focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-600/10 bg-white cursor-pointer"
         value={value}
-        onChange={onChange}
+        onChange={(e) => onChange(e.target.value)}
         required
       >
         <option value="">Selecciona {label}</option>
-        {options.map((option) =>{
-          let tipo = option.tipo || option.nombre;
+        {options.map((option,index) =>{          
+          let tipo = option.tipo || option.nombre_rol;
           return (
-          <option key={option.id} value={option.id}>
+          <option key={index} value={option.id}>
             {tipo} - {option.descripcion}
           </option>
         )})}

@@ -1,47 +1,45 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import AuthPage from '../pages/auth/AuthPage'
 import TestConnection from '../pages/auth/TestConnection'
+import Nav from '../components/layout/nav'
+import SideBar from '../components/layout/sideBar'
+import { useState } from 'react'
+import { Building2, File, ChartNoAxesCombined, Users, NotepadText} from 'lucide-react'
 
-// Placeholder para Dashboard
-function Dashboard() {
-  const { userData, signOut } = useAuth()
-
-  return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white shadow rounded-lg p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-            <button
-              onClick={signOut}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-            >
-              Cerrar Sesión
-            </button>
-          </div>
-          <div className="mt-4">
-            <h2 className="text-xl font-semibold">Bienvenido</h2>
-            {userData && (
-              <div className="mt-4 space-y-2">
-                <p><strong>Nombre:</strong> {userData.nombre} {userData.apellido}</p>
-                <p><strong>Email:</strong> {userData.email_empresa}</p>
-                {userData.roles && (
-                  <p><strong>Rol:</strong> {userData.roles.nombre_rol}</p>
-                )}
-                {userData.disciplinas && (
-                  <p><strong>Disciplina:</strong> {userData.disciplinas.tipo} - {userData.disciplinas.descripcion}</p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Componente para proteger rutas
+const navItems = [
+  {
+    name: 'Dashboard',
+    path: '/dashboard',
+    component: () => <div>Dashboard</div>,
+    icon: <ChartNoAxesCombined />
+  },
+  {
+    name: 'Documents',
+    path: '/documents',
+    component: () => <div>Documents</div>,
+    icon: <File />
+  },
+  {
+    name: 'Proyects',
+    path: '/proyects',
+    component: () => <div>Proyects</div>,
+    icon: <Building2 />
+  },
+  {
+    name: 'Seguimiento',
+    path: '/seguimiento',
+    component: () => <div>Seguimiento</div>,
+    icon: <NotepadText />
+  },
+  {
+    name: 'Users',
+    path: '/users',
+    component: () => <div>Users</div>,
+    icon: <Users />
+  },
+]
+// -------- Protected Route --------
 function ProtectedRoute({ children }) {
   const { user, userData, loading } = useAuth()
 
@@ -56,7 +54,6 @@ function ProtectedRoute({ children }) {
     )
   }
 
-  // Si hay usuario autenticado pero no existe en la tabla usuarios, redirigir al login
   if (user && !userData) {
     return <Navigate to="/?error=not_registered" replace />
   }
@@ -64,21 +61,35 @@ function ProtectedRoute({ children }) {
   return user && userData ? children : <Navigate to="/" replace />
 }
 
+// -------- Layout con location --------
+function AppLayout() {
+  const location = useLocation()
+  const [isOpen, setIsOpen] = useState(false)
+  return (
+    <>
+      {location.pathname !== '/' && <Nav isOpen={isOpen} />}
+      {location.pathname !== '/' && <SideBar isOpen={isOpen} setIsOpen={setIsOpen} navItems={navItems} />}
+      <Routes>
+        <Route path="/" element={<AuthPage />} />
+        <Route path="/test-connection" element={<TestConnection />} />
+        {navItems.map((item) => {
+          const Component = item.component
+          return (
+            <Route key={item.name} path={item.path} element={<ProtectedRoute><Component /></ProtectedRoute>} />
+          )
+        })}
+      </Routes>
+    </>
+  )
+}
+
+// -------- Router raíz --------
 export default function AppRoutes() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/test-connection" element={<TestConnection />} />
-        <Route path="/" element={<AuthPage />} />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+      <div className='bg-purple-50 h-screen w-screen font-mono'>
+        <AppLayout />
+      </div>
     </BrowserRouter>
   )
 }

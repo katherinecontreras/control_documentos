@@ -129,27 +129,13 @@ export function useAuth() {
       })
       if (authError) throw authError
 
-      // Si authData.user es null, significa que se requiere confirmación de email
-      // En ese caso, Supabase envía el email de confirmación pero no crea la sesión
-      if (!authData.user) {
-        // Se requiere confirmación de email
-        // Retornamos un objeto especial para indicar que se requiere confirmación
-        return { 
-          data: { 
-            requiresEmailConfirmation: true,
-            email: email 
-          }, 
-          error: null 
-        }
-      }
-
-      // Si authData.user existe, el usuario se creó y confirmó (o no requiere confirmación)
-      // Luego crear el registro en la tabla usuarios
+      // Crear el registro en la tabla usuarios independientemente de si se requiere confirmación
+      // Esto asegura que el usuario tenga su registro incluso si necesita confirmar el email
       const userRecordData = {
         ...userData,
         email_empresa: email, // El email de empresa es el mismo que el email de auth
         // Si tienes una columna auth_user_id en tu tabla, descomenta la línea siguiente:
-        // auth_user_id: authData.user.id,
+        // auth_user_id: authData.user?.id,
       }
 
       const { data: userRecord, error: userError } = await supabase
@@ -161,8 +147,28 @@ export function useAuth() {
       if (userError) {
         console.error('Error al crear registro de usuario:', userError)
         // Si falla, intentamos eliminar el usuario de auth para mantener consistencia
+        if (authData.user) {
+          await supabase.auth.admin.deleteUser(authData.user.id).catch(() => {})
+        }
         throw userError
       }
+
+      // Si authData.user es null, significa que se requiere confirmación de email
+      // En ese caso, Supabase envía el email de confirmación pero no crea la sesión
+      if (!authData.user) {
+        // Se requiere confirmación de email
+        // Retornamos un objeto especial para indicar que se requiere confirmación
+        return { 
+          data: { 
+            requiresEmailConfirmation: true,
+            email: email,
+            user: userRecord // Incluimos el registro de usuario creado
+          }, 
+          error: null 
+        }
+      }
+
+      // Si authData.user existe, el usuario se creó y confirmó (o no requiere confirmación)
       return { data: { auth: authData, user: userRecord }, error: null }
     } catch (error) {
       return { data: null, error }
@@ -188,8 +194,12 @@ export function useAuth() {
     try {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
+      // Limpiar los estados locales
+      setUser(null)
+      setUserData(null)
     } catch (error) {
       console.error('Error al cerrar sesión:', error)
+      throw error
     }
   }
 

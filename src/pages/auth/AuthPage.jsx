@@ -148,10 +148,10 @@ export default function AuthPage() {
       const userData = {
         nombre: registerData.nombre,
         apellido: registerData.apellido,
-        dni: registerData.dni ? parseInt(registerData.dni) : null,
+        dni: registerData.dni ? parseInt(registerData.dni, 10) : null,
         email_empresa: registerData.email_empresa,
-        id_rol: parseInt(registerData.id_rol),
-        id_disciplina: registerData.id_disciplina ? parseInt(registerData.id_disciplina) : null,
+        id_rol: parseInt(registerData.id_rol, 10),
+        id_disciplina: registerData.id_disciplina && registerData.id_disciplina !== '' ? parseInt(registerData.id_disciplina, 10) : null,
         lider_equipo: registerData.lider_equipo,
       }
 
