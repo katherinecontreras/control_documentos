@@ -9,6 +9,7 @@ import Input from '@/components/common/input'
 import LoadingData from '@/components/common/loadingData'
 import Button from '@/components/common/button'
 import Select from '@/components/common/select'
+import Header from '@/components/common/header'
 
 export default function AuthPage() {
   const [activeView, setActiveView] = useState('login') // 'login', 'register', 'confirmation'
@@ -287,7 +288,7 @@ export default function AuthPage() {
               {error}
             </div>
           )}
-          <h2 className="text-2xl font-bold text-purple-600 border-b-2 border-purple-600 pb-4 text-center mb-6">Iniciar Sesión</h2>
+          <Header variant="section" title="Iniciar Sesión" />
           <form onSubmit={handleLoginSubmit} className="space-y-5 px-16">
             <Input
               label="Email"
@@ -361,7 +362,7 @@ export default function AuthPage() {
                   {error}
                 </div>
               )}
-              <h2 className="text-2xl font-bold text-purple-600 border-b-2 border-purple-600 pb-4 text-center mb-6">Registrarse</h2>
+              <Header variant="section" title="Registrarse" />
               <form onSubmit={handleRegisterSubmit} className="space-y-4">
                 <div className="flex gap-4 justify-between">
                   <Input

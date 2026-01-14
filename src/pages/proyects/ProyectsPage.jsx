@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useProyects } from '../../hooks/useProyects'
 import ProyectosListView from './views/ProyectosListView'
 import ProyectoFormView from './views/ProyectoFormView'
-import Button from '@/components/common/button'
+import Header from '@/components/common/header'
 import { Plus, ArrowLeft } from 'lucide-react'
 
 export default function ProyectsPage({ isOpen }) {
@@ -45,16 +45,17 @@ export default function ProyectsPage({ isOpen }) {
         }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-8 pb-4 border-b-2 border-purple-600">
-          <h1 className="text-3xl font-bold text-purple-600">
-            {currentView === 'list'
+        <Header
+          variant="page"
+          title={
+            currentView === 'list'
               ? 'Proyectos'
               : editingProyectoId
                 ? 'Editar Proyecto'
-                : 'Crear Nuevo Proyecto'}
-          </h1>
-          <div>
-            {currentView === 'list' ? (
+                : 'Crear Nuevo Proyecto'
+          }
+          actions={
+            currentView === 'list' ? (
               <button
                 onClick={handleAddNew}
                 className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-semibold shadow-lg"
@@ -70,9 +71,9 @@ export default function ProyectsPage({ isOpen }) {
                 <ArrowLeft size={20} />
                 Volver
               </button>
-            )}
-          </div>
-        </div>
+            )
+          }
+        />
 
         {/* Content */}
         {currentView === 'list' ? (
