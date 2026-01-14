@@ -57,15 +57,32 @@ CREATE TABLE disciplinas_de_proyectos (
     nombre_disciplina VARCHAR(100) -- Civil, Mecánica, etc.
 );
 
+-- 8. Documentos (MDL)
 CREATE TABLE documentos (
     id_documento SERIAL PRIMARY KEY,
     id_disciplina_proy INT REFERENCES disciplinas_de_proyectos(id_disciplina_proy),
-    codigo VARCHAR(50) UNIQUE NOT NULL,
-    descripcion TEXT,
-    hh_estimadas INT DEFAULT 0,
-    archivo_url TEXT, -- Link a Supabase Storage
-    estado VARCHAR(50) DEFAULT 'Pendiente'
+    id_tipo_documento INT REFERENCES tipo_documento(id_tipo_doc),
+    codigo_documento_base VARCHAR(500),
+    codigo_documento_emitido VARCHAR(500),
+    nro_sub_proyecto INT,
+    nro_consecutivo INT,
+    nro_hojas INT,
+    cod_emision VARCHAR(2),
+    yacimiento VARCHAR(4),
+    instalacion VARCHAR(20),
+    descripcion VARCHAR(500),
+    archivo VARCHAR(500),
+    estado VARCHAR(100),
+    fecha_base DATE,
+    fecha_emision_prevista DATE,
+    formato_hojas VARCHAR(2),
+    hh_estimadas INT, 
+    hh_internas INT,
+    hh_externas INT,
+    tipo_archivo VARCHAR(100),
+    tipo_accion VARCHAR(100)
 );
+
 
 -- 6. Ejecución y Control (HH, Emisiones, Remitos)
 CREATE TABLE registro_horas (
