@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { useAuth } from '../hooks/useAuth'
 import AuthPage from '../pages/auth/AuthPage'
 import TestConnection from '../pages/auth/TestConnection'
+import ProyectsPage from '../pages/proyects/ProyectsPage'
 import Nav from '../components/layout/nav'
 import SideBar from '../components/layout/sideBar'
 import { useState } from 'react'
@@ -23,7 +24,7 @@ const navItems = [
   {
     name: 'Proyects',
     path: '/proyects',
-    component: () => <div>Proyects</div>,
+    component: ProyectsPage,
     icon: <Building2 />
   },
   {
@@ -75,7 +76,7 @@ function AppLayout() {
         {navItems.map((item) => {
           const Component = item.component
           return (
-            <Route key={item.name} path={item.path} element={<ProtectedRoute><Component /></ProtectedRoute>} />
+            <Route key={item.name} path={item.path} element={<ProtectedRoute><Component isOpen={isOpen}/></ProtectedRoute>} />
           )
         })}
       </Routes>
@@ -87,7 +88,7 @@ function AppLayout() {
 export default function AppRoutes() {
   return (
     <BrowserRouter>
-      <div className='bg-purple-50 h-screen w-screen font-mono'>
+      <div className='bg-purple-50 overflow-hidden h-full w-full font-mono'>
         <AppLayout />
       </div>
     </BrowserRouter>

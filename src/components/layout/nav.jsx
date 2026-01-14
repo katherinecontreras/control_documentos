@@ -8,7 +8,7 @@ export default function Nav({ isOpen }) {
 
     return (
         <nav className='p-2 w-full overflow-hidden'>
-            <div className={`flex items-center justify-between gap-2 ${isOpen ? 'ml-52' : 'ml-20'} transition-all duration-300`}>
+            <div className={`flex items-center justify-between gap-2 ${isOpen ? 'pl-52' : 'pl-20'} transition-all duration-300`}>
                 {userData && (
                     <p className='text-base text'>Bienvenido, {userData.nombre} {userData.apellido}</p>
                 )}

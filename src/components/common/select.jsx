@@ -13,11 +13,22 @@ export default function select({label, value, onChange, options, className}) {
         required
       >
         <option value="">Selecciona {label}</option>
-        {options.map((option,index) =>{          
-          let tipo = option.tipo || option.nombre_rol;
+        {options && Array.isArray(options) && options.map((option,index) =>{
+          let texto = "";
+          if(label === "Rol"){
+            texto = option.nombre_rol + " - " + option.descripcion  ;
+          } else if(label === "Disciplina"){
+            texto = option.tipo + " - " + option.descripcion;
+          } else if(label === "Cliente"){
+            texto = option.nombre
+          } else if(label === "Usuario"){
+            texto = option.nombre + " - " + option.apellido;
+          } else {
+            texto = option.nombre;
+          }
           return (
           <option key={index} value={option.id}>
-            {tipo} - {option.descripcion}
+            {texto}
           </option>
         )})}
       </select>
