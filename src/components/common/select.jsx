@@ -1,16 +1,17 @@
 import React from 'react'
 
-export default function select({label, value, onChange, options, className}) {
+export default function select({label, value, onChange, options, className, required = true, disabled = false}) {
   return (
     <div className={className}>
       <label className="block text-sm font-semibold text-gray-700 mb-2">
         {label}
       </label>
       <select
-        className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl text-base transition-all duration-300 focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-600/10 bg-white cursor-pointer"
+        className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl text-base transition-all duration-300 focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-600/10 bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        required
+        required={required}
+        disabled={disabled}
       >
         <option value="">Selecciona {label}</option>
         {options && Array.isArray(options) && options.map((option,index) =>{

@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth'
 import AuthPage from '../pages/auth/AuthPage'
 import TestConnection from '../pages/auth/TestConnection'
 import ProyectsPage from '../pages/proyects/ProyectsPage'
+import DocumentsPage from '../pages/documents/DocumentsPage'
 import Nav from '../components/layout/nav'
 import SideBar from '../components/layout/sideBar'
 import { useState } from 'react'
@@ -16,9 +17,9 @@ const navItems = [
     icon: <ChartNoAxesCombined />
   },
   {
-    name: 'Documents',
+    name: 'Documentos',
     path: '/documents',
-    component: () => <div>Documents</div>,
+    component: DocumentsPage,
     icon: <File />
   },
   {

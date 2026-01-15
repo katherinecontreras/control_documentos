@@ -1,6 +1,6 @@
 import React from 'react'
 
-export default function input({value, onChange, type, placeholder, icon, label, checked}) {
+export default function input({value, onChange, type, placeholder, icon, label, checked, required = true, disabled = false}) {
     return (
     <div className={`relative ${type === 'checkbox' ? 'flex items-center' : ''}`}>
         {type !== 'checkbox' && (
@@ -17,7 +17,8 @@ export default function input({value, onChange, type, placeholder, icon, label, 
                 value={value}
                 onChange={onChange}
                 checked={checked}
-                required
+                required={required}
+                disabled={disabled}
             />
             {type === 'checkbox' && (
                 <label htmlFor={label} className="ml-2 text-sm text-gray-700 cursor-pointer">

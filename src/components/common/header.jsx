@@ -21,6 +21,12 @@ export default function Header({ variant = 'page', title, actions, className = '
     )
   }
 
+  const normalizedActions = Array.isArray(actions)
+    ? actions.filter(Boolean)
+    : actions
+      ? [actions]
+      : []
+
   return (
     <div
       className={[
@@ -29,7 +35,11 @@ export default function Header({ variant = 'page', title, actions, className = '
       ].join(' ')}
     >
       <h1 className="text-3xl font-bold text-purple-600">{title}</h1>
-      <div>{actions}</div>
+      <div className="flex items-center gap-3">
+        {normalizedActions.map((action, idx) => (
+          <div key={idx}>{action}</div>
+        ))}
+      </div>
     </div>
   )
 }
