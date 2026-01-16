@@ -8,6 +8,7 @@ import { useDocuments } from '@/hooks/useDocuments'
 import ProjectDisciplinesView from './views/ProjectDisciplinesView'
 import DocumentsCardsView from './views/DocumentsCardsView'
 import DocumentDetailView from './views/DocumentDetailView'
+import CoordinatorDocumentsTableView from './views/CoordinatorDocumentsTableView'
 import { supabase } from '@/api/supabase'
 import { saveAs } from 'file-saver'
 import { Download, Upload, X, FileUp, ArrowLeft, RefreshCw } from 'lucide-react'
@@ -19,6 +20,7 @@ import {
   filterDocumentsForUser,
   canManageDocuments,
   getUserDisciplinaTipo,
+  getRoleKey,
 } from '@/utils/permissions'
 
 function Toast({ toast, onClose }) {
@@ -95,13 +97,16 @@ export default function DocumentsPage({ isOpen }) {
   const [docs, setDocs] = useState([])
   const [loadingDocs, setLoadingDocs] = useState(false)
   const [activeProjectId, setActiveProjectId] = useState('')
-  const [currentView, setCurrentView] = useState('disciplines') // 'disciplines' | 'documents' | 'detail'
+  const [currentView, setCurrentView] = useState('disciplines') // 'disciplines' | 'documents' | 'detail' | 'coordinator_table'
   const [selectedDoc, setSelectedDoc] = useState(null)
   const [disciplinasProy, setDisciplinasProy] = useState([])
   const [loadingDisciplinasProy, setLoadingDisciplinasProy] = useState(false)
   const [selectedDisciplinaTipo, setSelectedDisciplinaTipo] = useState('')
   const [storageExistsByName, setStorageExistsByName] = useState({})
   const [downloadingByName, setDownloadingByName] = useState({})
+
+  const [coordinatorRows, setCoordinatorRows] = useState([])
+  const [loadingCoordinator, setLoadingCoordinator] = useState(false)
 
   const [disciplinas, setDisciplinas] = useState([])
   const [tiposDocumento, setTiposDocumento] = useState([])
@@ -146,6 +151,8 @@ export default function DocumentsPage({ isOpen }) {
 
   const canPickDiscipline = useMemo(() => canViewAllDocuments(userData), [userData])
   const userDisciplinaTipo = useMemo(() => getUserDisciplinaTipo(userData), [userData])
+  const roleKey = useMemo(() => getRoleKey(userData), [userData])
+  const isCoordinator = roleKey === 'coordinador'
 
   const getProyectoById = (id) => {
     const pid = Number(id)
@@ -153,6 +160,206 @@ export default function DocumentsPage({ isOpen }) {
   }
 
   const STORAGE_BUCKET = 'documentos_ingenieria'
+
+  const buildCoordinatorReport = async ({ proyecto, documentos }) => {
+    const proyectoId = Number(proyecto?.id_proyecto)
+    const docList = Array.isArray(documentos) ? documentos : []
+    const docIds = docList.map((d) => Number(d?.id_documento)).filter((n) => Number.isFinite(n))
+    if (!proyectoId || docIds.length === 0) {
+      setCoordinatorRows([])
+      return
+    }
+
+    setLoadingCoordinator(true)
+    try {
+      // 0) Reglas de avance vinculadas al proyecto (medicion_de_avances -> reglas_de_avance)
+      // Usamos SIEMPRE porc_fisico de estas reglas para calcular avance.
+      const porcFisicoByTipoRevision = new Map()
+      try {
+        const { data: meds, error: medsErr } = await supabase
+          .from('medicion_de_avances')
+          .select(
+            `
+            id_medicion,
+            id_regla,
+            reglas_de_avance ( id_regla, tipo_revision, porc_fisico )
+          `
+          )
+          .eq('id_proyecto', proyectoId)
+        if (medsErr) throw medsErr
+        for (const m of meds || []) {
+          const tipo = String(m?.reglas_de_avance?.tipo_revision || '').trim().toUpperCase()
+          const porc = Number(m?.reglas_de_avance?.porc_fisico)
+          if (!tipo) continue
+          if (!Number.isFinite(porc)) continue
+          porcFisicoByTipoRevision.set(tipo, porc)
+        }
+      } catch (e) {
+        console.warn('No se pudieron obtener reglas de avance del proyecto:', e)
+      }
+
+      // 1) Horas cargadas por documento
+      const horasByDoc = new Map()
+      try {
+        const { data: rh, error: rhErr } = await supabase
+          .from('registro_horas')
+          .select('id_documento, horas_incurridas')
+          .in('id_documento', docIds)
+        if (rhErr) throw rhErr
+        for (const row of rh || []) {
+          const id = Number(row?.id_documento)
+          const h = Number(row?.horas_incurridas)
+          if (!Number.isFinite(id)) continue
+          horasByDoc.set(id, (horasByDoc.get(id) || 0) + (Number.isFinite(h) ? h : 0))
+        }
+      } catch {
+        // si falla, dejamos horas en 0
+      }
+
+      // 2) Última emisión por documento + regla (% físico) + rev
+      const lastEmissionByDoc = new Map()
+
+      // Intento A: emisiones -> medicion_de_avances -> reglas_de_avance
+      let emissions = null
+      let emissionsErr = null
+      try {
+        const { data, error } = await supabase
+          .from('emisiones')
+          .select(
+            `
+            id_emision,
+            id_documento,
+            fecha_emision_real,
+            cod_revision,
+            medicion_de_avances (
+              id_medicion,
+              id_regla,
+              hh_estimadas_previstas,
+              reglas_de_avance ( id_regla, tipo_revision, porc_fisico )
+            )
+          `
+          )
+          .in('id_documento', docIds)
+        if (error) throw error
+        emissions = data || []
+      } catch (e) {
+        emissionsErr = e
+      }
+
+      // Intento B: emisiones -> reglas_de_avance directo (si el intento A falla)
+      if (!emissions) {
+        try {
+          const { data, error } = await supabase
+            .from('emisiones')
+            .select(
+              `
+              id_emision,
+              id_documento,
+              fecha_emision_real,
+              cod_revision,
+              reglas_de_avance ( id_regla, tipo_revision, porc_fisico )
+            `
+            )
+            .in('id_documento', docIds)
+          if (error) throw error
+          emissions = data || []
+          emissionsErr = null
+        } catch (e2) {
+          emissionsErr = e2
+          emissions = []
+        }
+      }
+
+      if (emissionsErr) {
+        // no bloqueamos la vista, pero dejamos rev/avance en 0
+        console.warn('No se pudieron obtener emisiones/reglas:', emissionsErr)
+      }
+
+      for (const e of emissions || []) {
+        const idDoc = Number(e?.id_documento)
+        if (!Number.isFinite(idDoc)) continue
+        const prev = lastEmissionByDoc.get(idDoc)
+        const prevKey = Number(prev?.id_emision || 0)
+        const curKey = Number(e?.id_emision || 0)
+        if (!prev || curKey > prevKey) lastEmissionByDoc.set(idDoc, e)
+      }
+
+      // 3) Armado de filas + totales
+      const baseRows = docList
+        .slice()
+        .sort((a, b) => Number(a?.id_documento || 0) - Number(b?.id_documento || 0))
+        .map((d) => {
+          const id = Number(d?.id_documento)
+          const emission = lastEmissionByDoc.get(id)
+
+          const rev =
+            emission?.medicion_de_avances?.reglas_de_avance?.tipo_revision ||
+            emission?.reglas_de_avance?.tipo_revision ||
+            emission?.cod_revision ||
+            ''
+
+          const revKey = String(rev || '').trim().toUpperCase()
+
+          // Porcentaje físico: siempre desde reglas vinculadas al proyecto.
+          // Si además viene por join en la emisión, lo usamos como fallback.
+          const porcFisicoFromProyecto =
+            porcFisicoByTipoRevision.get(revKey) ?? null
+          const porcFisicoFromJoin =
+            Number(emission?.medicion_de_avances?.reglas_de_avance?.porc_fisico) ||
+            Number(emission?.reglas_de_avance?.porc_fisico) ||
+            null
+
+          const porcFisico = porcFisicoFromProyecto ?? porcFisicoFromJoin ?? 0
+          const factor = Number.isFinite(porcFisico) ? porcFisico / 100 : 0
+
+          const hhTotal =
+            Number(emission?.medicion_de_avances?.hh_estimadas_previstas) ||
+            Number(d?.hh_estimadas) ||
+            0
+
+          const hhCargadas = horasByDoc.get(id) || 0
+          const hhGanadas = hhTotal * (Number.isFinite(factor) ? factor : 0)
+
+          return {
+            id_documento: id,
+            codigo_documento: d?.codigo_documento_emitido || d?.codigo_documento_base || '',
+            codigo_documento_base: d?.codigo_documento_base || '',
+            descripcion: d?.descripcion || '',
+            cod_interno: proyecto?.cod_proyecto_cliente ?? '',
+            cod_cliente: proyecto?.cod_proyecto_interno ?? '',
+            rev: rev || '-',
+            hh_total: hhTotal,
+            hh_cargadas: hhCargadas,
+            _hh_ganadas: hhGanadas,
+          }
+        })
+
+      const sumHhTotal = baseRows.reduce((acc, r) => acc + (Number(r.hh_total) || 0), 0)
+      const sumHhCargadas = baseRows.reduce((acc, r) => acc + (Number(r.hh_cargadas) || 0), 0)
+      const sumHhGanadas = baseRows.reduce((acc, r) => acc + (Number(r._hh_ganadas) || 0), 0)
+
+      const rows = baseRows.map((r) => ({
+        ...r,
+        avance_proyecto_pct: sumHhTotal > 0 ? (Number(r._hh_ganadas || 0) / sumHhTotal) * 100 : 0,
+        avance_hh_pct: Number(r.hh_total) > 0 ? (Number(r.hh_cargadas || 0) / Number(r.hh_total)) * 100 : 0,
+      }))
+
+      const totalAvanceProyectoPct = sumHhTotal > 0 ? (sumHhGanadas / sumHhTotal) * 100 : 0
+      const totalAvanceHhPct = sumHhTotal > 0 ? (sumHhCargadas / sumHhTotal) * 100 : 0
+
+      rows.push({
+        __total: true,
+        hh_total: sumHhTotal,
+        hh_cargadas: sumHhCargadas,
+        avance_proyecto_pct: totalAvanceProyectoPct,
+        avance_hh_pct: totalAvanceHhPct,
+      })
+
+      setCoordinatorRows(rows)
+    } finally {
+      setLoadingCoordinator(false)
+    }
+  }
 
   const checkStorageExistsFor = async (filenames) => {
     const unique = Array.from(
@@ -367,7 +574,7 @@ export default function DocumentsPage({ isOpen }) {
                   setActiveProjectId(v)
                   setSelectedDoc(null)
                   setSelectedDisciplinaTipo('')
-                  setCurrentView('disciplines')
+                  setCurrentView(isCoordinator ? 'coordinator_table' : 'disciplines')
                   if (v) {
                     setLoadingDocs(true)
                     try {
@@ -375,6 +582,14 @@ export default function DocumentsPage({ isOpen }) {
                       const filtered = filterDocumentsForUser(data, userData)
                       setDocs(filtered)
                       await refreshDisciplinasProy(v, filtered)
+
+                      if (isCoordinator) {
+                        await buildCoordinatorReport({
+                          proyecto: getProyectoById(v),
+                          documentos: filtered,
+                        })
+                        return
+                      }
 
                       // Trabajador común: saltar selección de disciplinas y mostrar docs directamente
                       if (!canPickDiscipline) {
@@ -409,6 +624,7 @@ export default function DocumentsPage({ isOpen }) {
                   } else {
                     setDocs([])
                     setDisciplinasProy([])
+                    setCoordinatorRows([])
                   }
                 }}
                 options={proyectoOptions}
@@ -431,7 +647,13 @@ export default function DocumentsPage({ isOpen }) {
               </div>
             ) : null}
 
-            {currentView === 'disciplines' && canPickDiscipline ? (
+            {currentView === 'coordinator_table' && isCoordinator ? (
+              <CoordinatorDocumentsTableView
+                proyecto={getProyectoById(activeProjectId)}
+                rows={coordinatorRows}
+                loading={loadingDocs || loadingCoordinator}
+              />
+            ) : currentView === 'disciplines' && canPickDiscipline ? (
               <ProjectDisciplinesView
                 disciplinas={disciplinasProy}
                 loading={loadingDisciplinasProy}
@@ -457,7 +679,7 @@ export default function DocumentsPage({ isOpen }) {
                       ? `Disciplina: ${selectedDisciplinaTipo}`
                       : 'Disciplina'}
                   </div>
-                  {canPickDiscipline ? (
+                  {canPickDiscipline && !isCoordinator ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -502,7 +724,7 @@ export default function DocumentsPage({ isOpen }) {
             canManage={canManageDocuments(userData)}
             showToast={showToast}
             onBack={async () => {
-              setCurrentView('documents')
+              setCurrentView(isCoordinator ? 'coordinator_table' : 'documents')
               setSelectedDoc(null)
               if (activeProjectId) {
                 setLoadingDocs(true)
@@ -511,6 +733,12 @@ export default function DocumentsPage({ isOpen }) {
                 const filtered = filterDocumentsForUser(data, userData)
                 setDocs(filtered)
                 await refreshDisciplinasProy(activeProjectId, filtered)
+                if (isCoordinator) {
+                  await buildCoordinatorReport({
+                    proyecto: getProyectoById(activeProjectId),
+                    documentos: filtered,
+                  })
+                }
                 } finally {
                   setLoadingDocs(false)
                 }

@@ -4,6 +4,7 @@ import Select from '@/components/common/select'
 import Button from '@/components/common/button'
 import LoadingData from '@/components/common/loadingData'
 import { Mail, User, Lock, IdCard } from 'lucide-react'
+import { generateUserPassword } from '@/utils/passwords'
 
 export default function UserFormView({
   usuarioId,
@@ -24,7 +25,6 @@ export default function UserFormView({
 
   const [formData, setFormData] = useState({
     email_empresa: '',
-    password: '',
     nombre: '',
     apellido: '',
     dni: '',
@@ -52,7 +52,6 @@ export default function UserFormView({
       if (data) {
         setFormData({
           email_empresa: data.email_empresa || '',
-          password: '',
           nombre: data.nombre || '',
           apellido: data.apellido || '',
           dni: data.dni != null ? String(data.dni) : '',
@@ -91,15 +90,9 @@ export default function UserFormView({
     }))
   }, [disciplinas])
 
-  const validatePassword = (password) => {
-    if (password.length < 8) return 'La contraseña debe tener al menos 8 caracteres'
-    const hasLetter = /[a-zA-Z]/.test(password)
-    const hasNumber = /[0-9]/.test(password)
-    if (!hasLetter || !hasNumber) {
-      return 'La contraseña debe contener al menos una letra y un número'
-    }
-    return null
-  }
+  const generatedPassword = useMemo(() => {
+    return generateUserPassword(formData.nombre, formData.apellido, 2026)
+  }, [formData.nombre, formData.apellido])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -114,14 +107,12 @@ export default function UserFormView({
     }
 
     if (!isEditMode) {
-      if (!formData.password) {
-        setError('La contraseña es obligatoria para crear un usuario')
-        setSubmitting(false)
-        return
-      }
-      const passError = validatePassword(formData.password)
-      if (passError) {
-        setError(passError)
+      // Regla: Primera letra del nombre (MAY) + apellido (min) + 2026
+      // Supabase exige mínimo 6/8 según config; nosotros validamos 8 por seguridad/consistencia.
+      if (generatedPassword.length < 8) {
+        setError(
+          'No se puede generar una contraseña válida. Verifica que Nombre y Apellido tengan al menos 3 letras en el apellido.'
+        )
         setSubmitting(false)
         return
       }
@@ -164,7 +155,7 @@ export default function UserFormView({
       } else {
         const { data: created, error: createError } = await createUsuario?.({
           email: formData.email_empresa,
-          password: formData.password,
+          password: generatedPassword,
           usuarioData: payload,
         })
         if (createError) {
@@ -229,12 +220,13 @@ export default function UserFormView({
 
             {!isEditMode && (
               <Input
-                label="Contraseña"
-                type="password"
-                placeholder="Mínimo 8 caracteres"
-                value={formData.password}
-                onChange={(e) => handleChange('password', e.target.value)}
+                label="Contraseña (autogenerada)"
+                type="text"
+                placeholder="Se genera automáticamente"
+                value={generatedPassword}
+                onChange={() => {}}
                 icon={<Lock size={20} />}
+                disabled={true}
               />
             )}
 

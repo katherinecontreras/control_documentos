@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../api/supabase'
 import { getSiteUrl } from '@/utils/siteUrl'
+import { generateUserPassword } from '@/utils/passwords'
 
 export function useUsers() {
   const [usuarios, setUsuarios] = useState([])
@@ -110,9 +111,22 @@ export function useUsers() {
       previousSession = sessionData?.session || null
       const siteUrl = getSiteUrl()
 
+      // Regla de contraseña: Primera letra del nombre (MAY) + apellido (min) + 2026
+      // Ignoramos la contraseña enviada y la calculamos para garantizar consistencia.
+      const computedPassword = generateUserPassword(
+        usuarioData?.nombre,
+        usuarioData?.apellido,
+        2026
+      )
+      if (computedPassword.length < 8) {
+        throw new Error(
+          'No se puede generar una contraseña válida. Verifica que el apellido tenga al menos 3 letras.'
+        )
+      }
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
-        password,
+        password: computedPassword,
         options: {
           // Asegura que el link de confirmación vaya al login web (no localhost)
           emailRedirectTo: `${siteUrl}/`,
@@ -153,8 +167,37 @@ export function useUsers() {
       }
 
       const requiresEmailConfirmation = !authData?.session
+
+      // Enviar correo de bienvenida (además del email de confirmación de Supabase, si aplica)
+      let welcomeEmailSent = false
+      let welcomeEmailError = null
+      try {
+        const { error: fnError } = await supabase.functions.invoke(
+          'send-welcome-email',
+          {
+            body: {
+              to: email,
+              nombre: usuarioData?.nombre || '',
+              apellido: usuarioData?.apellido || '',
+              password: computedPassword,
+              siteUrl,
+            },
+          }
+        )
+        if (fnError) throw fnError
+        welcomeEmailSent = true
+      } catch (e) {
+        welcomeEmailError = e
+      }
+
       return {
-        data: { auth: authData, user: userRecord, requiresEmailConfirmation },
+        data: {
+          auth: authData,
+          user: userRecord,
+          requiresEmailConfirmation,
+          welcomeEmailSent,
+          welcomeEmailError,
+        },
         error: null,
       }
     } catch (error) {
