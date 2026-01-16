@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Header from '@/components/common/header'
 import Select from '@/components/common/select'
 import { useProyects } from '@/hooks/useProyects'
@@ -10,6 +11,15 @@ import DocumentDetailView from './views/DocumentDetailView'
 import { supabase } from '@/api/supabase'
 import { saveAs } from 'file-saver'
 import { Download, Upload, X, FileUp, ArrowLeft, RefreshCw } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import {
+  canUploadDocuments,
+  canViewAllDocuments,
+  filterDisciplinasProyectoForUser,
+  filterDocumentsForUser,
+  canManageDocuments,
+  getUserDisciplinaTipo,
+} from '@/utils/permissions'
 
 function Toast({ toast, onClose }) {
   if (!toast?.open) return null
@@ -59,6 +69,9 @@ function Modal({ isOpen, title, onClose, children, footer, busy = false }) {
 }
 
 export default function DocumentsPage({ isOpen }) {
+  const { userData } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const { proyectos, fetchProyectos, loading: loadingProyectos } = useProyects()
   const {
     loading: loadingCrud,
@@ -131,23 +144,12 @@ export default function DocumentsPage({ isOpen }) {
     return (proyectos || []).map((p) => ({ id: String(p.id_proyecto), nombre: p.nombre }))
   }, [proyectos])
 
+  const canPickDiscipline = useMemo(() => canViewAllDocuments(userData), [userData])
+  const userDisciplinaTipo = useMemo(() => getUserDisciplinaTipo(userData), [userData])
+
   const getProyectoById = (id) => {
     const pid = Number(id)
     return (proyectos || []).find((p) => Number(p.id_proyecto) === pid) || null
-  }
-
-  const refreshDocs = async (id_proyecto) => {
-    if (!id_proyecto) return
-    setLoadingDocs(true)
-    try {
-      const data = await fetchDocsByProjectCrud(Number(id_proyecto))
-      setDocs(data)
-    } catch (e) {
-      console.error('Error al obtener documentos:', e)
-      showToast('error', e?.message || 'Error al obtener documentos.')
-    } finally {
-      setLoadingDocs(false)
-    }
   }
 
   const STORAGE_BUCKET = 'documentos_ingenieria'
@@ -163,7 +165,6 @@ export default function DocumentsPage({ isOpen }) {
     const limit = 5
     for (let i = 0; i < pending.length; i += limit) {
       const chunk = pending.slice(i, i + limit)
-      // eslint-disable-next-line no-await-in-loop
       await Promise.all(
         chunk.map(async (name) => {
           try {
@@ -210,7 +211,7 @@ export default function DocumentsPage({ isOpen }) {
         counts.set(tipo, (counts.get(tipo) || 0) + 1)
       }
       setDisciplinasProy(
-        (list || []).map((x) => ({
+        filterDisciplinasProyectoForUser(list || [], userData).map((x) => ({
           ...x,
           documentCount: counts.get(x?.disciplinas?.tipo) || 0,
         }))
@@ -224,17 +225,46 @@ export default function DocumentsPage({ isOpen }) {
   }
 
   const openDownloadModal = () => {
+    if (!canViewAllDocuments(userData)) {
+      showToast('error', 'No tienes permisos para descargar Excel.')
+      return
+    }
     clearError()
     setDownloadProjectId('')
     setDownloadOpen(true)
   }
 
   const openUploadModal = () => {
+    if (!canUploadDocuments(userData)) {
+      showToast('error', 'No tienes permisos para cargar documentos.')
+      return
+    }
     clearError()
     setUploadProjectId('')
     setUploadFile(null)
     setUploadOpen(true)
   }
+
+  useEffect(() => {
+    const s = location.state
+    if (!s) return
+    let consumed = false
+
+    if (s?.toastFromNav?.message) {
+      showToast(s.toastFromNav.type || 'error', s.toastFromNav.message)
+      consumed = true
+    }
+
+    if (s?.openUploadFromNav) {
+      openUploadModal()
+      consumed = true
+    }
+
+    if (consumed) {
+      navigate(location.pathname, { replace: true, state: null })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, location.pathname])
 
   const handleDownload = async () => {
     const proyecto = getProyectoById(downloadProjectId)
@@ -245,12 +275,16 @@ export default function DocumentsPage({ isOpen }) {
       setActiveProjectId(String(proyecto.id_proyecto))
       setCurrentView('disciplines')
       setSelectedDoc(null)
+      setLoadingDocs(true)
       const data = await fetchDocsByProjectCrud(Number(proyecto.id_proyecto))
-      setDocs(data)
-      await refreshDisciplinasProy(String(proyecto.id_proyecto), data)
+      const filtered = filterDocumentsForUser(data, userData)
+      setDocs(filtered)
+      await refreshDisciplinasProy(String(proyecto.id_proyecto), filtered)
       setDownloadOpen(false)
     } catch (e) {
       showToast('error', e?.message || 'No se pudo descargar el Excel.')
+    } finally {
+      setLoadingDocs(false)
     }
   }
 
@@ -269,9 +303,11 @@ export default function DocumentsPage({ isOpen }) {
       setActiveProjectId(String(proyecto.id_proyecto))
       setCurrentView('disciplines')
       setSelectedDoc(null)
+      setLoadingDocs(true)
       const data = await fetchDocsByProjectCrud(Number(proyecto.id_proyecto))
-      setDocs(data)
-      await refreshDisciplinasProy(String(proyecto.id_proyecto), data)
+      const filtered = filterDocumentsForUser(data, userData)
+      setDocs(filtered)
+      await refreshDisciplinasProy(String(proyecto.id_proyecto), filtered)
       setUploadOpen(false)
       showToast(
         'success',
@@ -279,6 +315,8 @@ export default function DocumentsPage({ isOpen }) {
       )
     } catch (e) {
       showToast('error', e?.message || 'No se pudo cargar el Excel.')
+    } finally {
+      setLoadingDocs(false)
     }
   }
 
@@ -296,22 +334,26 @@ export default function DocumentsPage({ isOpen }) {
               variant="page"
               title="Documentos"
               actions={[
-                <button
-                  key="download"
-                  onClick={openDownloadModal}
-                  className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-semibold shadow-lg"
-                >
-                  <Download size={20} />
-                  Descargar
-                </button>,
-                <button
-                  key="upload"
-                  onClick={openUploadModal}
-                  className="flex items-center gap-2 px-6 py-3 bg-gray-700 text-white rounded-xl hover:bg-gray-800 transition-colors font-semibold"
-                >
-                  <Upload size={20} />
-                  Cargar
-                </button>,
+                canViewAllDocuments(userData) ? (
+                  <button
+                    key="download"
+                    onClick={openDownloadModal}
+                    className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-semibold shadow-lg"
+                  >
+                    <Download size={20} />
+                    Descargar
+                  </button>
+                ) : null,
+                canUploadDocuments(userData) ? (
+                  <button
+                    key="upload"
+                    onClick={openUploadModal}
+                    className="flex items-center gap-2 px-6 py-3 bg-gray-700 text-white rounded-xl hover:bg-gray-800 transition-colors font-semibold"
+                  >
+                    <Upload size={20} />
+                    Cargar
+                  </button>
+                ) : null,
               ]}
             />
 
@@ -325,11 +367,45 @@ export default function DocumentsPage({ isOpen }) {
                   setActiveProjectId(v)
                   setSelectedDoc(null)
                   setSelectedDisciplinaTipo('')
-                  setCurrentView(v ? 'disciplines' : 'disciplines')
+                  setCurrentView('disciplines')
                   if (v) {
-                    const data = await fetchDocsByProjectCrud(Number(v))
-                    setDocs(data)
-                    await refreshDisciplinasProy(v, data)
+                    setLoadingDocs(true)
+                    try {
+                      const data = await fetchDocsByProjectCrud(Number(v))
+                      const filtered = filterDocumentsForUser(data, userData)
+                      setDocs(filtered)
+                      await refreshDisciplinasProy(v, filtered)
+
+                      // Trabajador común: saltar selección de disciplinas y mostrar docs directamente
+                      if (!canPickDiscipline) {
+                        if (!userDisciplinaTipo) {
+                          showToast(
+                            'error',
+                            'Tu usuario no tiene disciplina asignada. Contacta al administrador.'
+                          )
+                          setCurrentView('disciplines')
+                          setSelectedDisciplinaTipo('')
+                          return
+                        }
+                        setSelectedDisciplinaTipo(userDisciplinaTipo)
+                        setCurrentView('documents')
+                        const names = filtered
+                          .filter(
+                            (d) =>
+                              d?.disciplinas_de_proyectos?.disciplinas?.tipo ===
+                              userDisciplinaTipo
+                          )
+                          .map((d) => d.archivo)
+                        checkStorageExistsFor(names)
+                      }
+                    } catch (e) {
+                      console.error('Error al obtener documentos:', e)
+                      showToast('error', e?.message || 'Error al obtener documentos.')
+                      setDocs([])
+                      setDisciplinasProy([])
+                    } finally {
+                      setLoadingDocs(false)
+                    }
                   } else {
                     setDocs([])
                     setDisciplinasProy([])
@@ -355,7 +431,7 @@ export default function DocumentsPage({ isOpen }) {
               </div>
             ) : null}
 
-            {currentView === 'disciplines' ? (
+            {currentView === 'disciplines' && canPickDiscipline ? (
               <ProjectDisciplinesView
                 disciplinas={disciplinasProy}
                 loading={loadingDisciplinasProy}
@@ -381,17 +457,19 @@ export default function DocumentsPage({ isOpen }) {
                       ? `Disciplina: ${selectedDisciplinaTipo}`
                       : 'Disciplina'}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCurrentView('disciplines')
-                      setSelectedDisciplinaTipo('')
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
-                  >
-                    <ArrowLeft size={18} />
-                    Volver a disciplinas
-                  </button>
+                  {canPickDiscipline ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCurrentView('disciplines')
+                        setSelectedDisciplinaTipo('')
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+                    >
+                      <ArrowLeft size={18} />
+                      Volver a disciplinas
+                    </button>
+                  ) : null}
                 </div>
 
                 <DocumentsCardsView
@@ -421,14 +499,21 @@ export default function DocumentsPage({ isOpen }) {
             disciplinas={disciplinas}
             tiposDocumento={tiposDocumento}
             loading={loadingCrud}
+            canManage={canManageDocuments(userData)}
             showToast={showToast}
             onBack={async () => {
               setCurrentView('documents')
               setSelectedDoc(null)
               if (activeProjectId) {
+                setLoadingDocs(true)
+                try {
                 const data = await fetchDocsByProjectCrud(Number(activeProjectId))
-                setDocs(data)
-                await refreshDisciplinasProy(activeProjectId, data)
+                const filtered = filterDocumentsForUser(data, userData)
+                setDocs(filtered)
+                await refreshDisciplinasProy(activeProjectId, filtered)
+                } finally {
+                  setLoadingDocs(false)
+                }
               }
             }}
             onUpdate={async (args) => {

@@ -124,6 +124,14 @@ function buildCodigoDocumentoBase({
   return `${y}-${i}-${c}-${d}-${t}-${nro_consecutivo}`
 }
 
+function normalizeCodigoBase(value) {
+  // Normalización agresiva para evitar falsos duplicados por espacios/case
+  return String(value ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+}
+
 function validateHeaders(headerRow) {
   const got = (headerRow || []).slice(0, EXPECTED_HEADERS.length).map((h) => String(h ?? '').trim())
   for (let i = 0; i < EXPECTED_HEADERS.length; i++) {
@@ -190,19 +198,26 @@ export function useDocumentsExcel() {
   }, [])
 
   const fetchCodigoBasesByProject = useCallback(async (id_proyecto) => {
-    const { data, error: qErr } = await supabase
-      .from('documentos')
-      .select(
-        `
-        codigo_documento_base,
-        disciplinas_de_proyectos ( id_proyecto )
-      `
-      )
-      .eq('disciplinas_de_proyectos.id_proyecto', id_proyecto)
+    // Importante: evitar filtros sobre embeds (pueden no filtrar la tabla raíz sin !inner)
+    // 1) Traer ids de disciplinas_de_proyectos del proyecto
+    const { data: dp, error: dpErr } = await supabase
+      .from('disciplinas_de_proyectos')
+      .select('id_disciplina_proy')
+      .eq('id_proyecto', id_proyecto)
+    if (dpErr) throw dpErr
 
-    if (qErr) throw qErr
-    return (data || [])
-      .map((r) => String(r?.codigo_documento_base ?? '').trim())
+    const ids = (dp || []).map((x) => x.id_disciplina_proy).filter(Boolean)
+    if (ids.length === 0) return []
+
+    // 2) Traer códigos base solo de esos documentos
+    const { data: docs, error: docsErr } = await supabase
+      .from('documentos')
+      .select('codigo_documento_base')
+      .in('id_disciplina_proy', ids)
+    if (docsErr) throw docsErr
+
+    return (docs || [])
+      .map((r) => normalizeCodigoBase(r?.codigo_documento_base))
       .filter(Boolean)
   }, [])
 
@@ -566,9 +581,10 @@ export function useDocumentsExcel() {
         // Verificar duplicados contra DB (solo dentro del proyecto seleccionado)
         const existingBases = new Set(await fetchCodigoBasesByProject(proyecto.id_proyecto))
         for (const row of parsedRows) {
-          if (existingBases.has(String(row.codigo_documento_base).trim())) {
+          const normalized = normalizeCodigoBase(row.codigo_documento_base)
+          if (existingBases.has(normalized)) {
             throw new Error(
-              `Fila ${row.excelRowNumber}: el documento ya existe en este proyecto (codigo_documento_base repetido).`
+              `Fila ${row.excelRowNumber}: el documento ya existe en este proyecto (codigo_documento_base repetido): "${row.codigo_documento_base}".`
             )
           }
         }

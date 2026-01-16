@@ -141,3 +141,40 @@ CREATE TABLE recepciones (
     observaciones VARCHAR(200),
     fecha_devolucion_cliente DATE
 );
+
+-- 14. Notificaciones (registro de actividad del sistema)
+-- Guarda "quién hizo qué, cuándo, y sobre qué entidad" (documento/proyecto/etc).
+CREATE TABLE notificaciones (
+    id_notificacion BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    -- Actor (quién lo hizo). En Supabase se puede completar desde el JWT (email/uid).
+    actor_auth_uid UUID,
+    actor_email VARCHAR(200),
+    actor_id_usuario INT REFERENCES usuarios(id_usuario),
+
+    -- Tipo de evento y entidad afectada
+    tipo VARCHAR(50) NOT NULL,          -- ej: 'documento_cargado', 'proyecto_creado'
+    entidad VARCHAR(30) NOT NULL,       -- ej: 'documento', 'proyecto'
+    entidad_id INT,                     -- id_documento o id_proyecto según entidad
+
+    -- Contexto opcional para filtrar
+    id_proyecto INT REFERENCES proyectos(id_proyecto),
+    id_disciplina_proy INT REFERENCES disciplinas_de_proyectos(id_disciplina_proy),
+
+    titulo VARCHAR(200),
+    mensaje VARCHAR(500),
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+-- Tabla puente para marcar notificaciones como vistas por usuario (para badge de no leídas)
+CREATE TABLE notificaciones_vistas (
+    id_notificacion BIGINT NOT NULL REFERENCES notificaciones(id_notificacion) ON DELETE CASCADE,
+    id_usuario INT NOT NULL REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+    visto_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (id_notificacion, id_usuario)
+);
+
+-- Índices para contar no leídas rápido
+CREATE INDEX idx_notificaciones_created_at ON notificaciones(created_at DESC);
+CREATE INDEX idx_notif_vistas_usuario ON notificaciones_vistas(id_usuario, visto_en DESC);

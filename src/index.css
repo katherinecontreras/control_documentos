@@ -19,5 +19,16 @@ body {
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
-  /* ... */
+  /* Paleta base (reemplaza purple-* globalmente) */
+  --color-purple-50: #f4e9cd;
+  --color-purple-100: #f4e9cd;
+  --color-purple-200: #9dbebb;
+  --color-purple-300: #9dbebb;
+  --color-purple-400: #77aca2;
+  --color-purple-500: #77aca2;
+  --color-purple-600: #468189;
+  --color-purple-700: #468189;
+  --color-purple-800: #031926;
+  --color-purple-900: #031926;
+  --color-purple-950: #031926;
 }

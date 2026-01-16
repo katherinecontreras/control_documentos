@@ -65,6 +65,7 @@ export default function DocumentDetailView({
   disciplinas = [],
   tiposDocumento = [],
   loading = false,
+  canManage = false,
   onBack,
   onUpdate,
   onDelete,
@@ -82,6 +83,10 @@ export default function DocumentDetailView({
     if (!documento) return false
     return !documento.cod_emision && !documento.codigo_documento_emitido
   }, [documento])
+
+  const canModify = useMemo(() => {
+    return !!canManage && !!canEdit
+  }, [canEdit, canManage])
 
   const disciplinaOptions = useMemo(() => {
     return (disciplinas || []).map((d) => ({
@@ -196,7 +201,7 @@ export default function DocumentDetailView({
 
   const handleUploadFile = async () => {
     if (!selectedFile) return
-    if (!canEdit || !editMode) return
+    if (!canModify || !editMode) return
     if (!documento.archivo) {
       showToast?.('error', 'El documento no tiene nombre de archivo.')
       return
@@ -273,7 +278,7 @@ export default function DocumentDetailView({
             <ArrowLeft size={20} />
             Volver
           </button>,
-          canEdit ? (
+          canModify ? (
             editMode ? (
               <button
                 key="cancel"
@@ -298,7 +303,7 @@ export default function DocumentDetailView({
               </button>
             )
           ) : null,
-          canEdit ? (
+          canModify ? (
             <button
               key="delete"
               onClick={() => setConfirmDeleteOpen(true)}
@@ -314,6 +319,10 @@ export default function DocumentDetailView({
       {!canEdit ? (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-900">
           Este documento ya fue emitido. No se puede modificar ni eliminar.
+        </div>
+      ) : !canManage ? (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-900">
+          No tienes permisos para modificar o eliminar documentos.
         </div>
       ) : null}
 

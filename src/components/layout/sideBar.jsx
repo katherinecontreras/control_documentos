@@ -31,24 +31,28 @@ export default function SideBar({ isOpen, setIsOpen, navItems }) {
                 </div>
                 <div className='gap-4 flex flex-col items-start'>
                     {navItems.map((item,index) => (
-                        <div key={index} className='flex items-center justify-start gap-2 cursor-pointer hover:bg-purple-100 rounded-full p-2 w-full transition-all duration-300'>
-                        <Link to={item.path} className='w-10 text-white h-10 bg-purple-600 rounded-full flex items-center justify-center'>
+                        <Link
+                          key={index}
+                          to={item.path}
+                          className="flex items-center justify-start gap-2 cursor-pointer hover:bg-purple-100 rounded-full p-2 w-full transition-all duration-300"
+                        >
+                          <div className="w-10 text-white h-10 bg-purple-600 rounded-full flex items-center justify-center">
                             {item.icon}
-                        </Link>
-                        <AnimatePresence>
+                          </div>
+                          <AnimatePresence>
                             {isOpen && (
-                                <motion.p
+                              <motion.p
                                 initial={{ opacity: 0, x: -10 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: -10 }}
                                 transition={{ duration: 0.2 }}
                                 className="text-sm font-mono whitespace-nowrap"
-                                >
+                              >
                                 {item.name}
-                                </motion.p>
+                              </motion.p>
                             )}
-                        </AnimatePresence>
-                        </div>
+                          </AnimatePresence>
+                        </Link>
                     ))}
                 </div>
                 <div onClick={handleSignOut} className='flex items-center justify-center gap-2 cursor-pointer hover:bg-purple-500 hover:text-white rounded-full p-2 w-full transition-all duration-300'>

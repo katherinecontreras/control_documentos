@@ -4,10 +4,12 @@ import AuthPage from '../pages/auth/AuthPage'
 import TestConnection from '../pages/auth/TestConnection'
 import ProyectsPage from '../pages/proyects/ProyectsPage'
 import DocumentsPage from '../pages/documents/DocumentsPage'
+import UsersPage from '../pages/users/UsersPage'
 import Nav from '../components/layout/nav'
 import SideBar from '../components/layout/sideBar'
 import { useState } from 'react'
 import { Building2, File, ChartNoAxesCombined, Users, NotepadText} from 'lucide-react'
+import { canAccessUsersPage, isAdmin } from '../utils/permissions'
 
 const navItems = [
   {
@@ -37,12 +39,13 @@ const navItems = [
   {
     name: 'Users',
     path: '/users',
-    component: () => <div>Users</div>,
-    icon: <Users />
+    component: UsersPage,
+    icon: <Users />,
+    adminOnly: true,
   },
 ]
 // -------- Protected Route --------
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children, requiresAdmin = false }) {
   const { user, userData, loading } = useAuth()
 
   if (loading) {
@@ -60,6 +63,10 @@ function ProtectedRoute({ children }) {
     return <Navigate to="/?error=not_registered" replace />
   }
 
+  if (requiresAdmin && user && userData && !canAccessUsersPage(userData)) {
+    return <Navigate to="/dashboard" replace />
+  }
+
   return user && userData ? children : <Navigate to="/" replace />
 }
 
@@ -67,17 +74,31 @@ function ProtectedRoute({ children }) {
 function AppLayout() {
   const location = useLocation()
   const [isOpen, setIsOpen] = useState(false)
+  const { userData } = useAuth()
+
+  const filteredNavItems = navItems.filter((item) => {
+    if (!item.adminOnly) return true
+    return isAdmin(userData)
+  })
   return (
     <>
       {location.pathname !== '/' && <Nav isOpen={isOpen} />}
-      {location.pathname !== '/' && <SideBar isOpen={isOpen} setIsOpen={setIsOpen} navItems={navItems} />}
+      {location.pathname !== '/' && <SideBar isOpen={isOpen} setIsOpen={setIsOpen} navItems={filteredNavItems} />}
       <Routes>
         <Route path="/" element={<AuthPage />} />
         <Route path="/test-connection" element={<TestConnection />} />
         {navItems.map((item) => {
           const Component = item.component
           return (
-            <Route key={item.name} path={item.path} element={<ProtectedRoute><Component isOpen={isOpen}/></ProtectedRoute>} />
+            <Route
+              key={item.name}
+              path={item.path}
+              element={
+                <ProtectedRoute requiresAdmin={!!item.adminOnly}>
+                  <Component isOpen={isOpen} />
+                </ProtectedRoute>
+              }
+            />
           )
         })}
       </Routes>
@@ -89,7 +110,7 @@ function AppLayout() {
 export default function AppRoutes() {
   return (
     <BrowserRouter>
-      <div className='bg-purple-50 overflow-hidden h-full w-full font-mono'>
+      <div className='bg-purple-50/30 overflow-hidden h-full w-full font-mono'>
         <AppLayout />
       </div>
     </BrowserRouter>

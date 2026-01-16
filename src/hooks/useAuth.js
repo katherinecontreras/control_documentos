@@ -104,7 +104,7 @@ export function useAuth() {
             userMessage = 'La contraseña es incorrecta o tu email no ha sido confirmado. Por favor, verifica tu contraseña o confirma tu email desde el panel de Supabase.'
           } else {
             // El usuario no existe ni en auth.users ni en nuestra tabla
-            userMessage = 'Este email no está registrado en el sistema. Por favor, regístrate primero.'
+            userMessage = 'Este email no está habilitado en el sistema. Contacta a un administrador para que te cree el usuario.'
           }
         } else {
           // Otro tipo de error
