@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../api/supabase'
+import { getSiteUrl } from '@/utils/siteUrl'
 
 export function useUsers() {
   const [usuarios, setUsuarios] = useState([])
@@ -107,10 +108,15 @@ export function useUsers() {
     try {
       const { data: sessionData } = await supabase.auth.getSession()
       previousSession = sessionData?.session || null
+      const siteUrl = getSiteUrl()
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          // Asegura que el link de confirmación vaya al login web (no localhost)
+          emailRedirectTo: `${siteUrl}/`,
+        },
       })
       if (authError) throw authError
 
@@ -146,7 +152,11 @@ export function useUsers() {
           .catch(() => {})
       }
 
-      return { data: { auth: authData, user: userRecord }, error: null }
+      const requiresEmailConfirmation = !authData?.session
+      return {
+        data: { auth: authData, user: userRecord, requiresEmailConfirmation },
+        error: null,
+      }
     } catch (error) {
       // Intentar restaurar sesión si algo falló tras el signUp
       if (previousSession?.access_token && previousSession?.refresh_token) {

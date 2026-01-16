@@ -1,11 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../api/supabase'
-
-function getSiteUrl() {
-  const fromEnv = import.meta.env.VITE_SITE_URL
-  const base = (fromEnv || window.location.origin || '').trim()
-  return base.endsWith('/') ? base.slice(0, -1) : base
-}
+import { getSiteUrl } from '@/utils/siteUrl'
 
 export function useAuth() {
   const [user, setUser] = useState(null)

@@ -162,7 +162,7 @@ export default function UserFormView({
           setTimeout(() => onSuccess?.(), 600)
         }
       } else {
-        const { error: createError } = await createUsuario?.({
+        const { data: created, error: createError } = await createUsuario?.({
           email: formData.email_empresa,
           password: formData.password,
           usuarioData: payload,
@@ -170,7 +170,13 @@ export default function UserFormView({
         if (createError) {
           setError(createError.message || 'Error al crear usuario')
         } else {
-          setSuccess('Usuario creado exitosamente')
+          if (created?.requiresEmailConfirmation) {
+            setSuccess(
+              `Usuario creado. Se envió un email de confirmación a "${formData.email_empresa}".`
+            )
+          } else {
+            setSuccess('Usuario creado exitosamente')
+          }
           setTimeout(() => onSuccess?.(), 600)
         }
       }
