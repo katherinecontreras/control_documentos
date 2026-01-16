@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../api/supabase'
 
+function getSiteUrl() {
+  const fromEnv = import.meta.env.VITE_SITE_URL
+  const base = (fromEnv || window.location.origin || '').trim()
+  return base.endsWith('/') ? base.slice(0, -1) : base
+}
+
 export function useAuth() {
   const [user, setUser] = useState(null)
   const [userData, setUserData] = useState(null)
@@ -122,10 +128,15 @@ export function useAuth() {
 
   const signUp = async (email, password, userData) => {
     try {
+      const siteUrl = getSiteUrl()
       // Primero crear el usuario en auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          // Asegura que el link de confirmación vaya al login web (no localhost)
+          emailRedirectTo: `${siteUrl}/`,
+        },
       })
       if (authError) throw authError
 
@@ -177,10 +188,11 @@ export function useAuth() {
 
   const signInWithGoogle = async () => {
     try {
+      const siteUrl = getSiteUrl()
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: `${siteUrl}/dashboard`,
         },
       })
       if (error) throw error
